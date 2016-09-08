@@ -22,9 +22,9 @@ import NoticeBar from './components/NoticeBar/NoticeBar';
 /* client app                                */
 /*********************************************/
 var store = createStore(reducer, applyMiddleware(clientMiddleware)),
-    title = 'coap-shepherd';
+    title = 'ble-shepherd';
 
-ioClient.start('http://localhost:3030');
+ioClient.start('http://' + window.location.hostname + ':3030');
 
 ioClient.on('permitJoining', function (msg) {
     // msg = { timeLeft }

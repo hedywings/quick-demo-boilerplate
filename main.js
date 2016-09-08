@@ -1,4 +1,5 @@
-var express = require('express');
+var express = require('express'),
+    path = require('path');
 
 var shepherdApp = require('./app/server'),
     isDeveloping = process.env.NODE_ENV !== 'production',
