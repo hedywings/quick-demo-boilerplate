@@ -19,7 +19,7 @@ const Flame = ({ enable, triggered, onClick }) => {
 
     let cardBgColor = enable ? bgColor : bgColorDisabled;
     let cardFgColor = enable ? (triggered ? fgColorOn : fgColorOff) : fgColorDisabled;
-
+    
     let reallyTriggered = enable && triggered;
     let icon = reallyTriggered ? <FireIcon fill={cardFgColor} /> : <FireIcon fill={cardFgColor} />;
     let shakeClass = reallyTriggered ? (csshake['shake-opacity'] + ' ' + csshake['shake-constant'] + ' ' + csshake['shake-constant--hover']) : '';

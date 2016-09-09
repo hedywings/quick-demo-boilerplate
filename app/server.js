@@ -1,5 +1,6 @@
 var http = require('http'),
     fs = require('fs'),
+    path = require('path'),
     _ = require('busyman'),
     chalk = require('chalk');
 
@@ -22,7 +23,9 @@ server.listen(3030);
 
 ioServer.start(server);
 
-var app = function () {
+function app () {
+    var firstPermitJoin = true;
+
 /**********************************/
 /* show Welcome Msg               */
 /**********************************/
@@ -37,7 +40,8 @@ var app = function () {
 /* start shepherd                 */
 /**********************************/
     // start your shepherd
-    var dbPath = '../node_modules/ble-shepherd/lib/database/ble.db';
+
+    var dbPath = path.resolve(__dirname, '../node_modules/ble-shepherd/lib/database/ble.db');
     fs.exists(dbPath, function (isThere) {
         if (isThere) { fs.unlink(dbPath); }
     });
@@ -60,6 +64,11 @@ var app = function () {
     ioServer.regReqHdlr('permitJoin', function (args, cb) { 
         central.permitJoin(args.time);
         cb(null, args);
+
+        if (firstPermitJoin) {
+            firstPermitJoin = false;
+            simpleApp();
+        }
     });
 
     ioServer.regReqHdlr('write', function (args, cb) { 
@@ -67,7 +76,7 @@ var app = function () {
             uuids = args.auxId.split('.'),
             sid = uuids[0],
             cid = _.parseInt(uuids[2]),
-            gad = dev.dump(sid, cid).value;
+            gad = dev.dump(sid, cid);
 
         gad.value[getGadProp(gad).valueName] = args.value;
 
@@ -84,7 +93,37 @@ var app = function () {
 /************************/
     central.on('ready', function () {
         readyInd();
-        simpleApp();
+
+        central.blocker.enable('white');
+
+        central.on('ind', function (msg) {
+            var dev = msg.periph;
+
+            switch (msg.type) {
+                /*** devIncoming      ***/
+                case 'devIncoming':
+                    devIncomingInd(cookRawDev(dev));
+                    break;
+
+                /*** devStatus        ***/
+                case 'devStatus':
+                    devStatusInd(dev.addr, msg.data);
+                    break;
+
+                /*** attrsChange      ***/
+                case 'attChange':
+                    var sid = msg.data.sid,
+                        cid = msg.data.cid,
+                        gad = dev.dump(sid.uuid, cid.handle);
+             
+                    valueName = getGadProp(gad).valueName;
+
+                    if (!_.isNil(valueName) && !_.isNil(msg.data.value[valueName])) 
+                        attrsChangeInd(dev.addr, cookRawGad(gad, sid.uuid));
+                    
+                    break;
+            }
+        });
     });
 
     /*** permitJoining    ***/
@@ -96,36 +135,7 @@ var app = function () {
     central.on('error', function (err) {
         errorInd(err.message);
     });
-
-    central.on('ind', function (msg) {
-        var dev = msg.periph;
-
-        switch (msg.type) {
-            /*** devIncoming      ***/
-            case 'devIncoming':
-                devIncomingInd(cookRawDev(dev));
-                break;
-
-            /*** devStatus        ***/
-            case 'devStatus':
-                devStatusInd(dev.addr, msg.data);
-                break;
-
-            /*** attrsChange      ***/
-            case 'attChange':
-                var sid = msg.data.sid,
-                    cid = msg.data.cid,
-                    gad = dev.dump(sid.uuid, cid.handle);
-                
-                valueName = getGadProp(gad).valueName;
-
-                if (!_.isNil(valueName) && !_.isNil(msg.data.value[valueName])) 
-                    attrsChangeInd(dev.addr, cookRawGad(gad, sid.uuid));
-                
-                break;
-        }
-    });
-};
+}
 
 
 /**********************************/
@@ -320,7 +330,7 @@ function getGadProp (gad) {
             break;
         case '0xcc':
             prop.name = 'Flame';
-            prop.valueName = 'dInState';
+            prop.valueName = 'sensorValue';
             break;
         default:
             return;
@@ -329,30 +339,186 @@ function getGadProp (gad) {
     return prop;
 }
 
+/**********************************/
+/* Simple Application             */
+/**********************************/
 function simpleApp () {
     var sensorPeriph = mockDevs.sensorPeriph,
         ctrlPeriph = mockDevs.ctrlPeriph,
-        switchPeriph = mockDevs.switchPeriph;
+        weathenPeriph = mockDevs.weathenPeriph;
 
-    sensorPeriph._central = ctrlPeriph._central = switchPeriph._central = central;
+    sensorPeriph._central = ctrlPeriph._central = weathenPeriph._central = central;
 
     central.blocker.enable('white');
 
     central.regPeriph(sensorPeriph);
     central.regPeriph(ctrlPeriph);
-    central.regPeriph(switchPeriph);
+    central.regPeriph(weathenPeriph);
 
     setTimeout(function () {
-        central.emit('ind', { type: 'devIncoming', periph: sensorPeriph });
-    }, 1000);
+        toastInd('Device ' + weathenPeriph.addr + ' will join the network');
+
+        setTimeout(function () {
+            central.emit('ind', { type: 'devIncoming', periph: weathenPeriph });
+        }, 3000);
+
+        setInterval(function () {
+            var tempVal = 25 + Math.random() * 5,
+                humidVal = 40 + Math.random() * 10;
+
+            attChangeInd(weathenPeriph, '0xbb20', '0xcc07', tempVal);
+            attChangeInd(weathenPeriph, '0xbb20', '0xcc08', humidVal);
+        }, 3000);
+    }, 100);
 
     setTimeout(function () {
-        central.emit('ind', { type: 'devIncoming', periph: switchPeriph });
-    }, 3000);
+        toastInd('Device ' + sensorPeriph.addr + ' will join the network');
+
+        setTimeout(function () {
+            central.emit('ind', { type: 'devIncoming', periph: sensorPeriph });
+        }, 3000);
+    }, 3500);
 
     setTimeout(function () {
-        central.emit('ind', { type: 'devIncoming', periph: ctrlPeriph });
-    }, 4000);
+        toastInd('Device ' + ctrlPeriph.addr + ' will join the network');
+
+        setTimeout(function () {
+            central.emit('ind', { type: 'devIncoming', periph: ctrlPeriph });
+        }, 3000);
+    }, 7000);
+
+    setTimeout(function () {
+        toastInd('You can click on a lamp or a buzzer');
+    }, 11000);
+
+    setTimeout(function () {
+        toastInd('User will turn on the light switch');
+
+        // turn on the light switch
+        setTimeout(function () {
+            attChangeInd(ctrlPeriph, '0xbb10', '0xcc2c', true);
+        }, 4000);
+
+        // turn on the light
+        setTimeout(function () {
+            toggleDev(ctrlPeriph, '0xbb10', '0xcc0d', true);
+        }, 4300);
+
+        setTimeout(function () {
+            toastInd('User will turn off the light switch');
+        }, 6500);
+
+        // turn off the light switch
+        setTimeout(function () {
+            attChangeInd(ctrlPeriph, '0xbb10', '0xcc2c', false);
+        }, 10500);
+
+        // turn off the light
+        setTimeout(function () {
+            toggleDev(ctrlPeriph, '0xbb10', '0xcc0d', false);
+        }, 11000);
+    }, 17000);
+
+    setTimeout(function () {
+        toastInd('Illumination is less than 50 lux, light would be turned on');
+
+        setTimeout(function () {
+            attChangeInd(sensorPeriph, '0xbb00', '0xcc05', 40);
+        }, 4500);
+
+        setTimeout(function () {
+            toggleDev(ctrlPeriph, '0xbb10', '0xcc0d', true);
+        }, 4800);
+
+        setTimeout(function () {
+            toastInd('Illumination is greater than 50 lux, light would be turned off');
+        }, 6000);
+
+        setTimeout(function () {
+            attChangeInd(sensorPeriph, '0xbb00', '0xcc05', 58);
+        }, 10500);
+
+        setTimeout(function () {
+            toggleDev(ctrlPeriph, '0xbb10', '0xcc0d', false);
+        }, 10800);
+
+        setTimeout(function () {
+            attChangeInd(sensorPeriph, '0xbb00', '0xcc05', 66);
+        }, 12000);
+    }, 29000);
+
+    setTimeout(function () {
+        toastInd('PIR sensed someone walking around, light would be turned on');
+
+        setTimeout(function () {
+            attChangeInd(sensorPeriph, '0xbb00', '0xcc00', true);
+        }, 5000);
+
+        setTimeout(function () {
+            toggleDev(ctrlPeriph, '0xbb10', '0xcc0d', true);
+        }, 5300);
+
+        setTimeout(function () {
+            attChangeInd(sensorPeriph, '0xbb00', '0xcc00', false);
+        }, 9500);
+
+        setTimeout(function () {
+            toggleDev(ctrlPeriph, '0xbb10', '0xcc0d', false);
+        }, 10500);
+    }, 41000);
+
+    setTimeout(function () {
+        toastInd('Flame sensor detect the presence of a flame or fire, buzzer would be turned on');
+
+        setTimeout(function () {
+            attChangeInd(sensorPeriph, '0xbb00', '0xcc', true);
+        }, 5000);
+
+        setTimeout(function () {
+            toggleDev(ctrlPeriph, '0xbb10', '0xcc28', true);
+        }, 5300);
+
+        setTimeout(function () {
+            attChangeInd(sensorPeriph, '0xbb00', '0xcc', false);
+        }, 9500);
+
+        setTimeout(function () {
+            toggleDev(ctrlPeriph, '0xbb10', '0xcc28', false);
+        }, 10500);
+    }, 53000);
+
+    setTimeout(function () {
+        central.blocker.disable();
+    }, 65000);
+}
+
+function toggleDev (periph, sid, cid, onOff) {
+    var periphValue = periph.dump(sid, cid).value;
+
+    periphValue.onOff = onOff;
+    periph.write(sid, cid, periphValue);
+}
+
+function attChangeInd (periph, suuid, cuuid, value) {
+    var emitMsg = { 
+            type: 'attChange', 
+            periph: periph, 
+            data: {} 
+        },
+        sid = { uuid: suuid, handle: null },
+        cid = { uuid: cuuid, handle: null },
+        emitValue = {},
+        gad = periph.dump(suuid, cuuid),
+        gadInfo = getGadProp(gad);
+
+    sid.handle = periph.dump(suuid).handle;
+    cid.handle = gad.handle;
+    emitValue[gadInfo.valueName] = value;
+
+    emitMsg.data = { sid: sid, cid: cid, value: emitValue };
+
+    periph.servs[sid.handle].chars[cid.handle].value[gadInfo.valueName] = value;
+    central.emit('ind', emitMsg);
 }
 
 module.exports = app;

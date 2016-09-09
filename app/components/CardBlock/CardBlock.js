@@ -144,16 +144,16 @@ var CardBlock = React.createClass({
 
         layoutDataGrids = {
             smallCard: [
-                {x: 5, y: 1, w: 1, h: 2},
-                {x: 5, y: 2, w: 1, h: 2},
+                {x: 7, y: 2, w: 1, h: 2},
+                {x: 5, y: 0, w: 1, h: 2},
                 {x: 6, y: 2, w: 1, h: 2},
-                {x: 4, y: 3, w: 1, h: 2},
-                {x: 6, y: 3, w: 1, h: 2}
+                {x: 5, y: 1, w: 1, h: 2},
+                {x: 5, y: 2, w: 1, h: 2}
             ],
             bigCard: [
-                {x: 4, y: 0, w: 2, h: 2},
-                {x: 3, y: 1, w: 2, h: 2},
-                {x: 3, y: 2, w: 2, h: 2}
+                {x: 3, y: 0, w: 2, h: 2},
+                {x: 3, y: 2, w: 2, h: 2},
+                {x: 3, y: 1, w: 2, h: 2}
             ]
         };
 

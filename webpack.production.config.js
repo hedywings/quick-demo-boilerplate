@@ -40,16 +40,16 @@ module.exports = {
             root: process.cwd()
         }),
         new webpack.optimize.CommonsChunkPlugin({
-            names: [ 'vendor', 'manifest' ],
+            names: [ 'vendor' ],
             minChunks: Infinity
         }),
+        new ExtractTextPlugin('[name]-[hash].min.css'),
         new webpack.optimize.UglifyJsPlugin({
             compressor: {
                 warnings: false,
                 screw_ie8: true
             }
         }),
-        new ExtractTextPlugin('[name]-[hash].min.css'),
         new webpack.DefinePlugin({
             'global.GENTLY': false
         }),
@@ -74,7 +74,7 @@ module.exports = {
             loader: 'url-loader?limit=10000'
         }, {
             test: /\.css$/,
-            loader: ExtractTextPlugin.extract('style', 'css'),
+            loader: ExtractTextPlugin.extract('style', 'css?modules&localIdentName=[name]__[local]-[hash:base64:5]'),
             include: PATHS.style
         }]
     },

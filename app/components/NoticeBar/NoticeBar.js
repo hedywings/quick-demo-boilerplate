@@ -20,7 +20,7 @@ var Notice = React.createClass({
                 <Snackbar
                     open={this.props.open}
                     message={this.props.message}
-                    autoHideDuration={3000}
+                    autoHideDuration={4000}
                     onRequestClose={this.handleRequestClose}
                     bodyStyle={{fontFamily: 'Lato'}}
                 />
